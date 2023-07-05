@@ -9,6 +9,7 @@ import { createSpinner } from "nanospinner";
 import { ethers } from "ethers";
 import NFTMarketplaceSDK from "nft-mp-sdk";
 import fs from "fs";
+import { getAccountsItems } from "./helpers.js";
 
 import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { type: "json" };
 import nftABI from "./contractData/abi/NFT.json" assert { type: "json" };
@@ -45,7 +46,7 @@ async function provideContractAddress() {
     ]);
 
     if (!ethers.utils.isAddress(contract)) {
-        console.log(chalk.bgRed("Invalid contract address"));        
+        console.log(chalk.bgRed("Invalid contract address"));
         await provideContractAddress();
         return;
     }
@@ -510,12 +511,14 @@ async function mintItem() {
         {
             type: "input",
             name: "image",
-            message: "Enter the path of the image of the item:",
-            default: "C:\\Users\\DanielDimitrov\\OneDrive - INENSIA\\Desktop\\mem.png",
+            message: "Enter the path of the image of the item (optional):",
         },
     ]);
 
-    const img = fs.readFileSync(image);
+    let img;
+    if (image) {
+        img = fs.readFileSync(image);
+    }
 
     const spinner = createSpinner("Minting item...");
     spinner.start();
@@ -651,17 +654,82 @@ async function listItem() {
     spinner.stop();
 }
 
+async function myItems() {
+    const spinner = createSpinner("Loading items...");
+    spinner.start();
+
+    const items = await getAccountsItems(sdkInstance, account);
+    
+    spinner.stop();
+
+    if (items.length == 0) {
+        console.log(chalk.bgRed("You don't own any items!"));
+        return;
+    }
+
+    items.forEach((item) => {
+        console.log(`
+        ${chalk.bold("ID:")} ${item.id.toString()}
+        ${chalk.bold("Name:")} ${item.name}
+        ${chalk.bold("Description:")} ${item.description}
+        ${chalk.bold("Image:")} ${item.image}
+        ${chalk.bold("Token ID:")} ${item.tokenId.toString()}
+        ${chalk.bold("Owner:")} ${item.owner}
+        ${chalk.bold("Price:")} ${ethers.utils.formatEther(item.price)} ETH
+        `);
+    });
+}
+
+async function accountsItems() {
+    const { account } = await inquirer.prompt([
+        {
+            type: "input",
+            name: "account",
+            message: "Enter the account address:",
+        },
+    ]);
+
+    if(!ethers.utils.isAddress(account)) {
+        console.log(chalk.bgRed("Invalid address!"));
+        return;
+    }
+
+    const spinner = createSpinner("Loading items...");
+    spinner.start();
+
+    const items = await getAccountsItems(sdkInstance, account);
+
+    spinner.stop();
+
+    if (items.length == 0) {
+        console.log(chalk.bgRed("You don't own any items!"));
+        return;
+    }
+
+    items.forEach((item) => {
+        console.log(`
+        ${chalk.bold("ID:")} ${item.id.toString()}
+        ${chalk.bold("Name:")} ${item.name}
+        ${chalk.bold("Description:")} ${item.description}
+        ${chalk.bold("Image:")} ${item.image}
+        ${chalk.bold("Token ID:")} ${item.tokenId.toString()}
+        ${chalk.bold("Owner:")} ${item.owner}
+        ${chalk.bold("Price:")} ${ethers.utils.formatEther(item.price)} ETH
+        `);
+    });
+}
+
 async function askForOption() {
     const { option } = await inquirer.prompt([
         {
             type: "list",
             name: "option",
             message: "What do you want to do?",
-            choices: ["Show all items", "Show item", "Buy item", "Mint item", "Add item to marketplace", "List item", "Make offer", "My offers", "Accept offer", "Exit"],
+            choices: ["Show all items", "Show item", "My items", "Account's items", "Buy item", "Mint item", "Add item to marketplace", "List item", "Make offer", "My offers", "Accept offer", "Exit"],
         },
     ]);
 
-    if (option !== "Exit" && option !== "Show all items" && option !== "Show item") {
+    if (option !== "Exit" && option !== "Show all items" && option !== "Show item" && option !== "Account's items") {
         if (!account) {
             console.log(chalk.bgRed("You must provide private key!"));
             await providePrivateKeyRequired();
@@ -674,29 +742,25 @@ async function askForOption() {
         await showItems();
     } else if (option === "Show item") {
         await showItem();
-    }
-    else if (option === "Buy item") {
+    } else if (option === "My items") {
+        await myItems();
+    } else if (option === "Account's items") {
+        await accountsItems();
+    } else if (option === "Buy item") {
         await buyItem();
-    }
-    else if (option === "Mint item") {
+    } else if (option === "Mint item") {
         await mintItem();
-    }
-    else if (option === "Add item to marketplace") {
+    } else if (option === "Add item to marketplace") {
         await addItemsToMarketplace();
-    }
-    else if (option === "List item") {
+    } else if (option === "List item") {
         await listItem();
-    }
-    else if (option === "Make offer") {
+    } else if (option === "Make offer") {
         await makeOffer();
-    }
-    else if (option === "My offers") {
+    } else if (option === "My offers") {
         await MyOffers();
-    }
-    else if (option === "Accept offer") {
+    } else if (option === "Accept offer") {
         await acceptOffer();
-    }
-    else if (option === "Exit") {
+    } else if (option === "Exit") {
         console.clear();
         process.exit();
     }
