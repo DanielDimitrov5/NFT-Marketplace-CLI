@@ -22,8 +22,8 @@ let privateKey;
 let account;
 let isOwner;
 
-let projectId = process.env.PROJECT_ID;
-let projectSecret = process.env.PROJECT_SECRET;
+let projectId = "2JgRgaB0c4gtdx2UnSOT0gnODyU";
+let projectSecret = "3ccaa9dce7ddd7051d208e7d00ae5eb4";
 
 let sdkInstance;
 
@@ -92,7 +92,7 @@ async function providePrivateKeyRequired() {
 }
 
 async function handleInputContract() {
-    let provider = new ethers.providers.InfuraProvider(process.env.NETWORK, process.env.API_KEY);
+    let provider = new ethers.providers.InfuraProvider("sepolia", "09755767452a49d3a5b3f9b84d9db6c9");
 
     if (verifyPrivateKey(privateKey)) {
         const wallet = new ethers.Wallet(privateKey);
@@ -102,7 +102,7 @@ async function handleInputContract() {
         account = wallet.address;
     }
 
-    const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, process.env.IPFS_PROVIDER);
+    const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, "https://charity-file-storage.infura-ipfs.io/ipfs/");
 
     sdkInstance = sdk;  
 }
