@@ -20,7 +20,7 @@ dotenv.config();
 let contractAddress;
 let privateKey;
 let account;
-let isOwner = false;
+let isOwner;
 
 let projectId = process.env.PROJECT_ID;
 let projectSecret = process.env.PROJECT_SECRET;
@@ -99,16 +99,12 @@ async function handleInputContract() {
 
         provider = wallet.connect(provider);
 
-        account = wallet.address;   
+        account = wallet.address;
     }
 
     const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, process.env.IPFS_PROVIDER);
 
     sdkInstance = sdk;  
-
-    if(await sdkInstance.isMarketplaceOwner(account)) {
-        isOwner = true;
-    }
 }
 
 function verifyPrivateKey(value) {
@@ -117,6 +113,14 @@ function verifyPrivateKey(value) {
     } catch (e) { return false; }
     return true;
 }
+
+async function setOwner() {
+    if(sdkInstance) {
+        isOwner = await sdkInstance.isMarketplaceOwner(account);
+    }
+}
+
+await setOwner();
 
 async function showItems() {
     const spinner = createSpinner("Loading items...");
