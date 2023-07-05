@@ -9,7 +9,7 @@ import { createSpinner } from "nanospinner";
 import { ethers } from "ethers";
 import NFTMarketplaceSDK from "nft-mp-sdk";
 import fs from "fs";
-import { getAccountsItems } from "./helpers.js";
+import { getAccountsItems, getItemsForSale, getItemsForOfferring, getOffers, getItemsForListing } from "./helpers.js";
 
 import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { type: "json" };
 import nftABI from "./contractData/abi/NFT.json" assert { type: "json" };
@@ -18,19 +18,16 @@ import nftBytecode from "./contractData/NftBytecode.json" assert { type: "json" 
 let contractAddress;
 let privateKey;
 let account;
+let isOwner = false;
 
 let projectId;
 let projectSecret;
 
 let sdkInstance;
 
-const spleep = (ms = 2000) => new Promise((resolve) => setTimeout(resolve, ms));
-
 async function welcome() {
-    const rainbow = chalkAnimation.karaoke("Welcome to the NFT-Marketplace CLI");
-
-    await spleep(2000);
-    rainbow.stop();
+    console.log(gradient.vice(figlet.textSync("NFT-Marketplace CLI", { horizontalLayout: "default" })));
+    console.log(gradient.vice("https://github.com/DanielDimitrov5"));
 }
 
 await welcome();
@@ -81,7 +78,7 @@ async function providePrivateKeyRequired() {
         },
     ]);
 
-    if (!verify(key)) {
+    if (!verifyPrivateKey(key)) {
         console.log(chalk.bgRed("Invalid private key"));
         await providePrivateKeyRequired();
         return;
@@ -92,23 +89,27 @@ async function providePrivateKeyRequired() {
     handleInputContract();
 }
 
-function handleInputContract() {
+async function handleInputContract() {
     let provider = new ethers.providers.InfuraProvider("sepolia", "09755767452a49d3a5b3f9b84d9db6c9");
 
-    if (verify(privateKey)) {
+    if (verifyPrivateKey(privateKey)) {
         const wallet = new ethers.Wallet(privateKey);
 
         provider = wallet.connect(provider);
 
-        account = wallet.address;
+        account = wallet.address;   
     }
 
     const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, 'https://charity-file-storage.infura-ipfs.io/ipfs/');
 
-    sdkInstance = sdk;
+    sdkInstance = sdk;  
+
+    if(await sdkInstance.isMarketplaceOwner(account)) {
+        isOwner = true;
+    }
 }
 
-function verify(value) {
+function verifyPrivateKey(value) {
     try {
         new ethers.Wallet(value);
     } catch (e) { return false; }
@@ -151,6 +152,15 @@ async function showItem() {
         },
     ]);
 
+    const contract = new ethers.Contract(contractAddress, nftMarketplaceABI, sdkInstance.provider);
+    const itemCount = await contract.itemCount();
+
+    if(!Number.isInteger(Number(id)) || Number(id) < 1 || Number(id) > itemCount) {
+        console.log(chalk.bgRed("Invalid token ID"));
+        await showItem();
+        return;
+    }
+
     const spinner = createSpinner("Loading item...");
     spinner.start();
 
@@ -176,32 +186,19 @@ async function showItem() {
 }
 
 async function buyItem() {
+    const spinner = createSpinner("Loading items...");
+    spinner.start();
 
-    const { items, metadataArrModified } = await sdkInstance.loadItems();
+    const items = await getItemsForSale(sdkInstance, account);
 
-    const itemsWithMetadata = items.map((item, index) => {
-        return {
-            ...item,
-            ...metadataArrModified[index],
-        };
-    });
+    spinner.stop();
 
-    const filteredItems = itemsWithMetadata.filter((item) => item.price.toString() != "0" && item.owner !== account).map(item => {
-        return {
-            id: item.id,
-            name: item.data.name,
-            description: item.data.description,
-            price: item.price,
-            owner: item.owner,
-        }
-    });
-
-    if (filteredItems.length == 0) {
+    if (items.length == 0) {
         console.log(chalk.bgRed("There are no items to buy"));
         return;
     }
 
-    const choices = filteredItems.map((item) => {
+    const choices = items.map((item) => {
         return {
             name: `${item.name} - ${item.description} - ${ethers.utils.formatEther(item.price)} ETH`,
             value: item.id,
@@ -217,10 +214,9 @@ async function buyItem() {
         },
     ]);
 
-    const spinner = createSpinner("Buying item...");
     spinner.start();
 
-    const item = filteredItems.find((item) => item.id == id);
+    const item = items.find((item) => item.id == id);
 
     const owner = item.owner;
 
@@ -235,7 +231,7 @@ async function buyItem() {
     spinner.stop();
 
     if (result == 1) {
-        console.log(chalk.bgCyan("Item bought successfully!"));
+        console.log(chalk.bgGreen("Item bought successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
@@ -244,27 +240,14 @@ async function buyItem() {
 
 async function makeOffer() {
 
-    const { items, metadataArrModified } = await sdkInstance.loadItems();
+    const spinner = createSpinner("Loading items..."); 
+    spinner.start();
 
-    const itemsWithMetadata = items.map((item, index) => {
-        return {
-            ...item,
-            ...metadataArrModified[index],
-        };
-    });
+    const items = await getItemsForOfferring(sdkInstance, account);
 
-    const filteredItems = itemsWithMetadata.filter((item) => item.price.toString() == "0" && item.owner != account).map(item => {
-        return {
-            id: item.id,
-            name: item.data.name,
-            description: item.data.description,
-            nft: item.nft,
-            tokenId: item.tokenId,
-            owner: item.owner,
-        }
-    });
+    spinner.stop();
 
-    const choices = filteredItems.map((item) => {
+    const choices = items.map((item) => {
         return {
             name: `ID: ${item.id} - ${item.name} - ${item.description.slice(0, 50)} - nft: ${item.nft} - token ID: ${item.tokenId}`,
             value: item.id,
@@ -288,18 +271,23 @@ async function makeOffer() {
         },
     ]);
 
-    const spinner = createSpinner("Making offer...");
+    if (isNaN(offer) || Number(offer) <= 0) {
+        console.log(chalk.bgRed("Invalid offer"));
+        await makeOffer();
+        return;
+    }
 
-    spinner.start();
+    const offerSpinner = createSpinner("Making offer...");
+    offerSpinner.start();
 
     const parseToWei = ethers.utils.parseEther(offer);
 
     const result = await sdkInstance.placeOffer(id, parseToWei);
 
-    spinner.stop();
+    offerSpinner.stop();
 
     if (result == 1) {
-        console.log(chalk.bgCyan("Offer made successfully!"));
+        console.log(chalk.bgGreen("Offer made successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
@@ -307,7 +295,12 @@ async function makeOffer() {
 }
 
 async function MyOffers() {
+    const spinner = createSpinner("Loading offers...");
+    spinner.start();
+
     const offers = await sdkInstance.getAccountsOffers(account);
+
+    spinner.stop();
 
     const choices = offers.map((offer) => {
         return {
@@ -357,7 +350,7 @@ async function MyOffers() {
 
         if (claim == 1) {
             spinner.stop();
-            console.log(chalk.bgCyan("Item claimed successfully!"));
+            console.log(chalk.bgGreen("Item claimed successfully!"));
         }
         else {
             console.log(chalk.bgRed("Something went wrong!"));
@@ -366,32 +359,20 @@ async function MyOffers() {
 }
 
 async function acceptOffer() {
-    const { items } = await sdkInstance.loadItems();
+    
+    const spinnerLoading = createSpinner("Loading offers...");
+    spinnerLoading.start();
 
-    const filteredItems = items.filter((item) => item.owner == account && item.price.toString() == "0");
+    const offers = await getOffers(sdkInstance, account);
 
-    const ids = filteredItems.map((item) => item.id.toNumber());
+    spinnerLoading.stop();
 
-    const idArr = Array.from(ids);
-
-    const offerPromises = idArr.map((id) => sdkInstance.getOffers(id));
-
-    const offers = await Promise.all(offerPromises);
-
-    offers.forEach((offer, index) => {
-        offer.forEach((o) => {
-            o.itemId = idArr[index];
-        });
-    });
-
-    const offersFiltered = offers.filter((offer) => offer.length > 0).flat().filter((offer) => offer.seller === account && offer.isAccepted == false);
-
-    if (offersFiltered.length == 0) {
+    if (offers.length == 0) {
         console.log(chalk.bgRed("You don't have any offers to accept!"));
         return;
     }
 
-    const choices = offersFiltered.map((offer) => {
+    const choices = offers.map((offer) => {
         return {
             name: `ID: ${offer.itemId} - From: ${offer.offerer} - ${ethers.utils.formatEther(offer.price)} ETH`,
             value: { id: offer.itemId, offerer: offer.offerer },
@@ -417,7 +398,7 @@ async function acceptOffer() {
 
     if (accept == 1) {
         spinner.stop();
-        console.log(chalk.bgCyan("Offer accepted successfully!"));
+        console.log(chalk.bgGreen("Offer accepted successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
@@ -475,7 +456,12 @@ async function mintItem() {
 
     await provideIdSecter();
 
+    const spinnerLoading = createSpinner("Loading collections...");
+    spinnerLoading.start();
+
     const collections = await loadCollections();
+
+    spinnerLoading.stop();
 
     if (collections.length == 0) {
         console.log(chalk.bgRed("You don't own any collections!"));
@@ -535,7 +521,7 @@ async function mintItem() {
 
     if (result == 1) {
         spinner.stop();
-        console.log(chalk.bgCyan("Item minted successfully!"));
+        console.log(chalk.bgGreen("Item minted successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
@@ -543,7 +529,13 @@ async function mintItem() {
 }
 
 async function addItemsToMarketplace() {
+
+    const spinnerLoading = createSpinner("Loading collections...");
+    spinnerLoading.start();
+
     const collections = await loadCollections();
+
+    spinnerLoading.stop();
 
     if (collections.length == 0) {
         console.log(chalk.bgRed("You don't own any collections!"));
@@ -589,7 +581,7 @@ async function addItemsToMarketplace() {
 
     if (result == 1) {
         spinner.stop();
-        console.log(chalk.bgCyan("Item added to marketplace successfully!"));
+        console.log(chalk.bgGreen("Item added to marketplace successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
@@ -597,24 +589,20 @@ async function addItemsToMarketplace() {
 }
 
 async function listItem() {
-    const { filteredItems: items, nfts } = await sdkInstance.loadItemsForListing(account);
 
-    const combinedItems = items.map((item) => {
-        const nft = nfts.find((nft) => nft.tokenId == item.tokenId);
-        return {
-            ...item,
-            name: nft.name,
-            description: nft.description,
-            image: nft.image,
-        };
-    });
+    const spinnerLoading = createSpinner("Loading items...");
+    spinnerLoading.start();
+
+    const items = await getItemsForListing(sdkInstance, account);
+
+    spinnerLoading.stop();
 
     if (items.length == 0) {
         console.log(chalk.bgRed("You don't own any items that are not listed!"));
         return;
     }
 
-    const choices = combinedItems.map((item) => {
+    const choices = items.map((item) => {
         return {
             name: `ID: ${item.tokenId.toString()} - ${item.name} - ${item.description} | ${item.image}`,
             value: { id: item.tokenId, nft: item.nftContract },
@@ -638,6 +626,11 @@ async function listItem() {
         },
     ]);
 
+    if(isNaN(price) || price <= 0) {
+        console.log(chalk.bgRed("Invalid price!"));
+        return;
+    }
+
     const spinner = createSpinner("Listing item...");
     spinner.start();
 
@@ -645,13 +638,11 @@ async function listItem() {
 
     if (result == 1) {
         spinner.stop();
-        console.log(chalk.bgCyan("Item listed successfully!"));
+        console.log(chalk.bgGreen("Item listed successfully!"));
     }
     else {
         console.log(chalk.bgRed("Something went wrong!"));
     }
-
-    spinner.stop();
 }
 
 async function myItems() {
@@ -719,17 +710,60 @@ async function accountsItems() {
     });
 }
 
+async function getMarketplaceBalance() {
+    const spinner = createSpinner("Loading marketplace balance...");
+    spinner.start();
+
+    const balance = await sdkInstance.getMarketplaceBalance();
+
+    spinner.stop();
+
+    console.log(chalk.bgGreen(`Marketplace balance: ${chalk.bold(ethers.utils.formatEther(balance))} ETH`));
+}
+
+async function withdrawMoney() {
+
+    const spinner = createSpinner("Withdrawing money...");
+    spinner.start();
+
+    const result = await sdkInstance.withdrawMoney();
+
+    spinner.stop();
+
+    if (result == 1) {
+        console.log(chalk.bgGreen("Money withdrawn successfully!"));
+    }
+    else {
+        console.log(chalk.bgRed("Something went wrong!"));
+    }
+}
+
+
+
 async function askForOption() {
+    const choices = ["Show all items", "Show item", "My items", "Account's items", 
+                    "Buy item", "Mint item", "Add item to marketplace", "List item", 
+                    "Make offer", "My offers", "Accept offer", "Get marketplace balance","Exit"];
+
+    if(isOwner){
+        choices.unshift("Withdraw money");
+    }
+
     const { option } = await inquirer.prompt([
         {
             type: "list",
             name: "option",
             message: "What do you want to do?",
-            choices: ["Show all items", "Show item", "My items", "Account's items", "Buy item", "Mint item", "Add item to marketplace", "List item", "Make offer", "My offers", "Accept offer", "Exit"],
+            choices: choices
         },
     ]);
 
-    if (option !== "Exit" && option !== "Show all items" && option !== "Show item" && option !== "Account's items") {
+    if (option !== "Exit" && 
+        option !== "Show all items" && 
+        option !== "Show item" && 
+        option !== "Account's items" && 
+        option !== "Get marketplace balance") {
+
         if (!account) {
             console.log(chalk.bgRed("You must provide private key!"));
             await providePrivateKeyRequired();
@@ -738,7 +772,9 @@ async function askForOption() {
         }
     }
 
-    if (option === "Show all items") {
+    if (option === "Withdraw money") {
+        await withdrawMoney();
+    } else if (option === "Show all items") {
         await showItems();
     } else if (option === "Show item") {
         await showItem();
@@ -760,8 +796,11 @@ async function askForOption() {
         await MyOffers();
     } else if (option === "Accept offer") {
         await acceptOffer();
+    } else if (option === "Get marketplace balance") {
+        await getMarketplaceBalance();
     } else if (option === "Exit") {
         console.clear();
+        console.log(gradient.instagram(figlet.textSync("Goodbye!")));
         process.exit();
     }
 
@@ -769,4 +808,3 @@ async function askForOption() {
 }
 
 await askForOption();
-
