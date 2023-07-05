@@ -3,7 +3,6 @@
 import chalk from "chalk";
 import inquirer from "inquirer";
 import gradient from "gradient-string";
-import chalkAnimation from "chalk-animation";
 import figlet from "figlet";
 import { createSpinner } from "nanospinner";
 import { ethers } from "ethers";
@@ -15,13 +14,16 @@ import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { 
 import nftABI from "./contractData/abi/NFT.json" assert { type: "json" };
 import nftBytecode from "./contractData/NftBytecode.json" assert { type: "json" };
 
+import dotenv from "dotenv";
+dotenv.config();
+
 let contractAddress;
 let privateKey;
 let account;
 let isOwner = false;
 
-let projectId;
-let projectSecret;
+let projectId = process.env.PROJECT_ID;
+let projectSecret = process.env.PROJECT_SECRET;
 
 let sdkInstance;
 
@@ -90,7 +92,7 @@ async function providePrivateKeyRequired() {
 }
 
 async function handleInputContract() {
-    let provider = new ethers.providers.InfuraProvider("sepolia", "09755767452a49d3a5b3f9b84d9db6c9");
+    let provider = new ethers.providers.InfuraProvider(process.env.NETWORK, process.env.API_KEY);
 
     if (verifyPrivateKey(privateKey)) {
         const wallet = new ethers.Wallet(privateKey);
@@ -100,7 +102,7 @@ async function handleInputContract() {
         account = wallet.address;   
     }
 
-    const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, 'https://charity-file-storage.infura-ipfs.io/ipfs/');
+    const sdk = new NFTMarketplaceSDK(provider, contractAddress, nftMarketplaceABI, nftABI, nftBytecode.bytecode, process.env.IPFS_PROVIDER);
 
     sdkInstance = sdk;  
 
@@ -172,6 +174,8 @@ async function showItem() {
         ...metadata,
     };
 
+    spinner.stop();
+
     console.log(`
         ${chalk.bold("ID:")} ${combindedItem.id.toString()}
         ${chalk.bold("Name:")} ${combindedItem.data.name}
@@ -181,8 +185,6 @@ async function showItem() {
         ${chalk.bold("Owner:")} ${combindedItem.owner}
         ${chalk.bold("Price:")} ${ethers.utils.formatEther(combindedItem.price)} ETH
         `)
-
-    spinner.stop();
 }
 
 async function buyItem() {
@@ -551,7 +553,12 @@ async function addItemsToMarketplace() {
         },
     ]);
 
+    const spinnerLoadingItems = createSpinner("Loading items...");
+    spinnerLoadingItems.start();
+
     const itemsForAdding = await sdkInstance.loadItemsForAdding(collection, account);
+
+    spinnerLoadingItems.stop();
 
     if (itemsForAdding.length == 0) {
         console.log(chalk.bgRed("You don't own any items that are not in the marketplace!"));
@@ -737,8 +744,6 @@ async function withdrawMoney() {
         console.log(chalk.bgRed("Something went wrong!"));
     }
 }
-
-
 
 async function askForOption() {
     const choices = ["Show all items", "Show item", "My items", "Account's items", 
