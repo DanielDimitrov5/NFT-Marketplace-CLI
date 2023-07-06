@@ -10,12 +10,9 @@ import NFTMarketplaceSDK from "nft-mp-sdk";
 import fs from "fs";
 import { getAccountsItems, getItemsForSale, getItemsForOfferring, getOffers, getItemsForListing } from "./helpers.js";
 
-import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { type: "json" };
+import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { type: "json" }; 
 import nftABI from "./contractData/abi/NFT.json" assert { type: "json" };
 import nftBytecode from "./contractData/NftBytecode.json" assert { type: "json" };
-
-import dotenv from "dotenv";
-dotenv.config();
 
 let contractAddress;
 let privateKey;
@@ -115,7 +112,7 @@ function verifyPrivateKey(value) {
 }
 
 async function setOwner() {
-    if(sdkInstance) {
+    if(ethers.utils.isAddress(account)) {
         isOwner = await sdkInstance.isMarketplaceOwner(account);
     }
 }
@@ -749,10 +746,68 @@ async function withdrawMoney() {
     }
 }
 
+async function createNFTCollection() {
+    const { name } = await inquirer.prompt([
+        {
+            type: "input",
+            name: "name",
+            message: "Enter the name of the collection:",
+        },
+    ]);
+
+    const { symbol } = await inquirer.prompt([
+        {
+            type: "input",
+            name: "symbol",
+            message: "Enter the symbol of the collection:",
+        },
+    ]);
+
+    const spinner = createSpinner("Creating collection...");
+    spinner.start();
+
+    const collection = await sdkInstance.deployNFTCollection(name, symbol);
+
+    const collectionAddress = collection.address;
+
+    const result = await sdkInstance.addExistingCollection(collectionAddress);
+
+    spinner.stop();
+
+    if (result == 1) {
+        console.log(chalk.bgGreen("Collection created successfully!"));
+    }
+    else {
+        console.log(chalk.bgRed("Something went wrong!"));
+    }
+}
+
+async function showCollections() {
+    const spinner = createSpinner("Loading collections...");
+    spinner.start();
+
+    const collections = await sdkInstance.loadCollections();
+
+    spinner.stop();
+
+    if (collections.length == 0) {
+        console.log(chalk.bgRed("No collections found!"));
+        return;
+    }
+
+    collections.forEach((collection) => {
+        console.log(`
+        ${chalk.bold("Name:")} ${collection.name}
+        ${chalk.bold("Symbol:")} ${collection.symbol}
+        ${chalk.bold("Address:")} ${collection.address}
+        `);
+    });
+}
+
 async function askForOption() {
-    const choices = ["Show all items", "Show item", "My items", "Account's items", 
+    const choices = ["Show all items", "Show item", "My items", "Account's items", "Show collections",
                     "Buy item", "Mint item", "Add item to marketplace", "List item", 
-                    "Make offer", "My offers", "Accept offer", "Get marketplace balance","Exit"];
+                    "Make offer", "My offers", "Accept offer", "Create NFT Collection", "Get marketplace balance","Exit"];
 
     if(isOwner){
         choices.unshift("Withdraw money");
@@ -771,7 +826,8 @@ async function askForOption() {
         option !== "Show all items" && 
         option !== "Show item" && 
         option !== "Account's items" && 
-        option !== "Get marketplace balance") {
+        option !== "Get marketplace balance" &&
+        option !== "Show collections") {
 
         if (!account) {
             console.log(chalk.bgRed("You must provide private key!"));
@@ -791,6 +847,8 @@ async function askForOption() {
         await myItems();
     } else if (option === "Account's items") {
         await accountsItems();
+    } else if (option === "Show collections") {
+        await showCollections();
     } else if (option === "Buy item") {
         await buyItem();
     } else if (option === "Mint item") {
@@ -805,6 +863,8 @@ async function askForOption() {
         await MyOffers();
     } else if (option === "Accept offer") {
         await acceptOffer();
+    } else if (option === "Create NFT Collection") {
+        await createNFTCollection();
     } else if (option === "Get marketplace balance") {
         await getMarketplaceBalance();
     } else if (option === "Exit") {
