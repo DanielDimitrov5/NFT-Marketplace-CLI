@@ -55,15 +55,16 @@ async function provideContractAddress() {
 await provideContractAddress();
 
 async function providerPrivateKey() {
-    const { privateKey: key } = await inquirer.prompt([
+    const { privateKey: key333 } = await inquirer.prompt([
         {
-            type: "input",
+            type: "password",
             name: "privateKey",
             message: "Enter your private key (optional):",
+            
         },
     ]);
 
-    privateKey = key.trim();
+    privateKey = key333.trim();
 
     handleInputContract();
 }
@@ -73,7 +74,7 @@ await providerPrivateKey();
 async function providePrivateKeyRequired() {
     const { privateKey: key } = await inquirer.prompt([
         {
-            type: "input",
+            type: "password",
             name: "privateKey",
             message: "Enter your private key:",
         },
