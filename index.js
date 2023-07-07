@@ -8,6 +8,7 @@ import { createSpinner } from "nanospinner";
 import { ethers } from "ethers";
 import NFTMarketplaceSDK from "nft-mp-sdk";
 import fs from "fs";
+
 import { getAccountsItems, getItemsForSale, getItemsForOfferring, getOffers, getItemsForListing } from "./helpers.js";
 
 import nftMarketplaceABI from "./contractData/abi/NFTMarketplace.json" assert { type: "json" }; 
@@ -58,7 +59,7 @@ async function providerPrivateKey() {
         {
             type: "input",
             name: "privateKey",
-            message: "Enter your private key:",
+            message: "Enter your private key (optional):",
         },
     ]);
 
