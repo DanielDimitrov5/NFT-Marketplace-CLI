@@ -87,7 +87,9 @@ Once you select an option, you may need to enter additional information dependin
 
 ## CLI Screenshot
 
-*Insert screenshot here*
+![menu](https://i.imgur.com/amyzbtZ.png)
+
+![item](https://i.imgur.com/26uPufG.png)
 
 ## Contributing
 

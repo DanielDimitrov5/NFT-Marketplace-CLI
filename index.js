@@ -26,9 +26,10 @@ let sdkInstance;
 
 async function welcome() {
     console.log(gradient.vice(figlet.textSync("NFT-Marketplace CLI", { horizontalLayout: "default" })));
-    console.log(gradient.vice("https://github.com/DanielDimitrov5"));
+    console.log(gradient.vice("https://github.com/DanielDimitrov5/NFT-Marketplace-CLI"));
 }
 
+console.clear();
 await welcome();
 
 async function provideContractAddress() {
@@ -37,7 +38,7 @@ async function provideContractAddress() {
             type: "input",
             name: "contract",
             message: "Enter your contract address:",
-            default: "0x705279FAE070DEe258156940d88A6eCF5B302073",
+            default: "0x8C43a9eF5291E8F2184df0A05c0b7d9978e230CA",
         },
     ]);
 
