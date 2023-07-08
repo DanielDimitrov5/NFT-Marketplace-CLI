@@ -55,7 +55,7 @@ async function provideContractAddress() {
 await provideContractAddress();
 
 async function providerPrivateKey() {
-    const { privateKey: key333 } = await inquirer.prompt([
+    const { privateKey: key } = await inquirer.prompt([
         {
             type: "password",
             name: "privateKey",
@@ -64,7 +64,7 @@ async function providerPrivateKey() {
         },
     ]);
 
-    privateKey = key333.trim();
+    privateKey = key.trim();
 
     handleInputContract();
 }
@@ -89,9 +89,11 @@ async function providePrivateKeyRequired() {
     privateKey = key.trim();
 
     handleInputContract();
+    
+    await setOwner();
 }
 
-async function handleInputContract() {
+function handleInputContract() {
     let provider = new ethers.providers.InfuraProvider("sepolia", "09755767452a49d3a5b3f9b84d9db6c9");
 
     if (verifyPrivateKey(privateKey)) {
