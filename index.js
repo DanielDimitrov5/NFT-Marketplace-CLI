@@ -39,7 +39,7 @@ async function provideContractAddress() {
             type: "input",
             name: "contract",
             message: "Enter your contract address:",
-            default: "0x8C43a9eF5291E8F2184df0A05c0b7d9978e230CA",
+            default: "0xf4351BA9Ca701Cf689442833CDA5F7FF18C2e00C",
         },
     ]);
 
